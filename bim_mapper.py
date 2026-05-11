@@ -574,8 +574,9 @@ class BIMAccessibilityMapper:
             xs = [v[0] for v in verts]; ys = [v[1] for v in verts]; zs = [v[2] for v in verts]
             min_z, max_z = min(zs), max(zs)
 
-            # Centroides de cara inferior y superior para una posición XY más precisa
-            tol_z = max((max_z - min_z) * 0.15, 0.10)
+            # Posición XY: centroide de la franja inferior (inicio) y superior (fin).
+            # Refleja la posición geométrica real de entrada/salida del tramo.
+            tol_z = max((max_z - min_z) * 0.10, 0.15)
             bot = [(x, y) for x, y, z in verts if z <= min_z + tol_z]
             top = [(x, y) for x, y, z in verts if z >= max_z - tol_z]
             cx_s = sum(v[0] for v in bot) / len(bot) if bot else xs[zs.index(min_z)]

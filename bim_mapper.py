@@ -652,33 +652,33 @@ class BIMAccessibilityMapper:
                         accessible=False, edge_type="escalera_rellano",
                     )
 
-        # Fallback geométrico: solo para tramos NO conectados vía IfcRelAggregates
-        # y únicamente entre NIVELES ADYACENTES (índice ±1). Conectar nodos de
-        # plantas no consecutivas crea aristas cruzadas que no reflejan la
-        # circulación real y sobrecargan el grafo visualmente.
-        storeys_idx = {name: i for i, (name, _) in enumerate(self._sorted_storeys)}
-        stair_nodes = [
+        # Fallback por proximidad en rellano: conecta únicamente nodos END de un tramo
+        # con nodos START de otro tramo distinto que estén en la misma posición 3D
+        # (comparten rellano). Esto cubre IfcStair distintos que coinciden en planta
+        # sin crear conexiones espurias entre tramos alejados.
+        end_nodes_fb = [
             (nid, d) for nid, d in self.G.nodes(data=True)
-            if d.get("type") == "Escalera"
+            if d.get("type") == "Escalera" and nid.endswith("_END")
         ]
-        for i, (na_id, na) in enumerate(stair_nodes):
-            for nb_id, nb in stair_nodes[i + 1:]:
-                if self.G.has_edge(na_id, nb_id):
+        start_nodes_fb = [
+            (nid, d) for nid, d in self.G.nodes(data=True)
+            if d.get("type") == "Escalera" and nid.endswith("_START")
+        ]
+        for end_id, end_d in end_nodes_fb:
+            for start_id, start_d in start_nodes_fb:
+                if self.G.has_edge(end_id, start_id):
                     continue
-                lvl_a = na.get("level", ""); lvl_b = nb.get("level", "")
-                if lvl_a == lvl_b:
+                # No conectar el tramo consigo mismo
+                if end_id.rsplit("_", 1)[0] == start_id.rsplit("_", 1)[0]:
                     continue
-                # Solo niveles consecutivos (adyacentes en la lista de plantas)
-                idx_a = storeys_idx.get(lvl_a, -1)
-                idx_b = storeys_idx.get(lvl_b, -1)
-                if idx_a < 0 or idx_b < 0 or abs(idx_a - idx_b) != 1:
-                    continue
-                dxy = math.hypot(na['x'] - nb['x'], na['y'] - nb['y'])
-                dz  = abs(na['z'] - nb['z'])
-                if dxy <= 2.5 and 0.5 <= dz <= 6.0:
+                dxy = math.hypot(end_d['x'] - start_d['x'], end_d['y'] - start_d['y'])
+                dz  = abs(end_d['z'] - start_d['z'])
+                # Mismo rellano: posición 3D casi idéntica
+                if dxy <= 1.5 and dz <= 0.5:
                     self.add_edge_with_polyline(
-                        na_id, nb_id,
-                        [(na['x'], na['y'], na['z']), (nb['x'], nb['y'], nb['z'])],
+                        end_id, start_id,
+                        [(end_d['x'], end_d['y'], end_d['z']),
+                         (start_d['x'], start_d['y'], start_d['z'])],
                         weight=max(dxy * 1.2, 0.5),
                         accessible=False, edge_type="escalera_rellano",
                     )

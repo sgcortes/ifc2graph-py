@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Archivos IFC (pueden ser muy grandes)
+*.ifc
+
+# Archivos de diseño / CAD / BIM
+*.rvt
+*.blend
+*.blend1
+*.drawio
+*.docx
+*.gpkg
+
+# Imágenes de trabajo
+Level*.png
+Emblema*.png
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Logs
+*.log
+
+# Temporales de subida
+uploads/
+tmp/

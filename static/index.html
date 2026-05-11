@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>IFC2GRAPH — Navegación de edificios</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: #f0f2f5; color: #1a1a1a; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Header ── */
+#header {
+  background: #1e40af; color: white;
+  padding: 8px 20px; display: flex; align-items: center; gap: 14px;
+  flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+#header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.5px; }
+.upload-btn {
+  background: white; color: #1e40af; padding: 6px 14px; border-radius: 6px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer; border: none;
+  transition: background 0.15s;
+}
+.upload-btn:hover { background: #dbeafe; }
+#filenameDisplay { font-size: 0.8rem; opacity: 0.8; max-width: 260px;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#loading { display: none; align-items: center; gap: 8px; font-size: 0.85rem; }
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+           border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Logo Universidad de Oviedo */
+#uniLogo {
+  margin-left: auto; display: flex; align-items: center; gap: 10px;
+}
+#uniLogo img {
+  height: 44px; width: auto;
+  filter: brightness(0) invert(1); /* blanco sobre fondo azul */
+  opacity: 0.92;
+}
+#uniLogo span {
+  font-size: 0.78rem; font-weight: 500; opacity: 0.85; white-space: nowrap;
+  border-left: 1px solid rgba(255,255,255,0.35); padding-left: 10px;
+}
+
+/* ── Controls bar ── */
+#controlsBar {
+  background: white; border-bottom: 1px solid #e5e7eb;
+  padding: 8px 20px; display: none; align-items: center; gap: 20px;
+  flex-wrap: wrap; flex-shrink: 0;
+}
+#controlsBar label { font-size: 0.85rem; font-weight: 600; color: #374151; }
+select {
+  padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 5px;
+  font-size: 0.85rem; background: white; color: #111;
+}
+select:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+.wheelchair-label {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  font-size: 0.85rem; font-weight: 600; color: #374151;
+  background: #f0fdf4; border: 1px solid #bbf7d0; padding: 5px 12px;
+  border-radius: 20px; transition: background 0.15s;
+}
+.wheelchair-label:hover { background: #dcfce7; }
+.wheelchair-label input { width: 15px; height: 15px; cursor: pointer; }
+#statsDisplay { margin-left: auto; font-size: 0.75rem; color: #6b7280; }
+
+/* ── Main panels ── */
+#panelsContainer {
+  display: none; flex: 1; gap: 12px; padding: 12px;
+  min-height: 0;
+}
+.panel {
+  background: white; border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+}
+.panel-header {
+  padding: 8px 14px; border-bottom: 1px solid #f3f4f6;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.panel-title { font-size: 0.85rem; font-weight: 600; color: #374151; }
+.plot-container { flex: 1; min-height: 0; }
+.plot-container > div { width: 100%; height: 100%; }
+
+/* Botón reset vista */
+.btn-reset-view {
+  margin-left: auto; font-size: 0.75rem; padding: 3px 10px; border-radius: 12px;
+  cursor: pointer; border: 1px solid #d1d5db; background: #f9fafb; color: #374151;
+  transition: background 0.15s; user-select: none;
+}
+.btn-reset-view:hover { background: #e5e7eb; }
+
+/* Botón toggle de tooltips */
+.btn-tooltip-toggle {
+  font-size: 0.75rem; padding: 3px 10px; border-radius: 12px;
+  cursor: pointer; border: 1px solid #d1d5db; background: #f0fdf4; color: #166534;
+  transition: all 0.15s; user-select: none;
+}
+.btn-tooltip-toggle.off { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.btn-tooltip-toggle:hover { filter: brightness(0.95); }
+
+/* Click mode badge */
+#clickModeBadge {
+  font-size: 0.75rem; padding: 3px 10px; border-radius: 12px; cursor: pointer;
+  border: 1px solid #fbbf24; background: #fffbeb; color: #92400e;
+  transition: all 0.15s; user-select: none;
+}
+#clickModeBadge.mode-dest { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
+
+/* ── Route panel ── */
+#routePanel {
+  display: none; background: white; flex-shrink: 0;
+  border-top: 1px solid #e5e7eb; padding: 10px 20px;
+}
+.route-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.route-field { display: flex; flex-direction: column; gap: 3px; }
+.route-field label { font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; }
+.route-field select { min-width: 200px; }
+.btn-calc {
+  background: #1e40af; color: white; border: none; padding: 7px 18px;
+  border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-calc:hover { background: #1d4ed8; }
+.btn-calc:disabled { background: #9ca3af; cursor: not-allowed; }
+.btn-clear {
+  background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 7px 14px;
+  border-radius: 6px; font-size: 0.85rem; cursor: pointer;
+}
+.btn-clear:hover { background: #e5e7eb; }
+
+/* Route result */
+#routeResult { margin-top: 8px; }
+.route-ok {
+  background: #f0fdf4; border-left: 3px solid #22c55e;
+  padding: 8px 12px; border-radius: 4px; font-size: 0.82rem;
+}
+.route-fail {
+  background: #fef2f2; border-left: 3px solid #ef4444;
+  padding: 8px 12px; border-radius: 4px; font-size: 0.82rem; color: #7f1d1d;
+}
+.route-summary { font-weight: 600; margin-bottom: 6px; }
+.route-steps { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.step-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; border: 1px solid;
+}
+.step-arrow { color: #9ca3af; font-size: 0.9rem; }
+.level-badge {
+  font-size: 0.65rem; background: rgba(0,0,0,0.08);
+  padding: 1px 5px; border-radius: 8px; margin-left: 2px;
+}
+
+/* Splash */
+#splash {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 16px; color: #6b7280;
+}
+#splash h2 { font-size: 1.5rem; color: #1e40af; font-weight: 700; }
+#splash p { font-size: 0.9rem; max-width: 400px; text-align: center; line-height: 1.6; }
+.splash-icon { font-size: 4rem; }
+
+/* ── Layer bar ── */
+#layerBar {
+  background: #f8fafc; border-bottom: 1px solid #e5e7eb;
+  padding: 5px 20px; display: none; align-items: center; gap: 6px;
+  flex-wrap: wrap; flex-shrink: 0;
+}
+.layer-section-label {
+  font-size: 0.72rem; font-weight: 700; color: #9ca3af;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding-right: 4px; margin-right: 2px;
+  border-right: 1px solid #e5e7eb;
+}
+.layer-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.76rem; color: #374151; cursor: pointer;
+  padding: 2px 8px; border-radius: 10px;
+  border: 1px solid #e5e7eb; background: white;
+  transition: background 0.12s; user-select: none;
+}
+.layer-toggle:hover { background: #f0f4ff; border-color: #c7d2fe; }
+.layer-toggle input { cursor: pointer; width: 12px; height: 12px; accent-color: #2563eb; }
+.layer-sep { width: 1px; background: #e5e7eb; height: 16px; flex-shrink: 0; }
+
+/* Controles de tamaño de nodos */
+.layer-size-ctrl {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.76rem; color: #374151;
+  padding: 2px 8px; border-radius: 10px;
+  border: 1px solid #e5e7eb; background: white;
+  white-space: nowrap;
+}
+.layer-size-ctrl input[type=range] {
+  width: 72px; height: 4px; cursor: pointer;
+  accent-color: #2563eb; vertical-align: middle;
+}
+.layer-size-value {
+  display: inline-block; width: 2.2em; text-align: right;
+  font-variant-numeric: tabular-nums; color: #2563eb; font-weight: 600;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div id="header">
+  <h1>🏢 IFC2GRAPH</h1>
+  <label class="upload-btn" for="fileInput">
+    📂 Cargar archivo IFC
+    <input type="file" id="fileInput" accept=".ifc" style="display:none">
+  </label>
+  <span id="filenameDisplay"></span>
+  <div id="loading">
+    <span class="spinner"></span>
+    Procesando modelo IFC…
+  </div>
+  <!-- Logo Universidad de Oviedo (derecha) -->
+  <div id="uniLogo">
+    <img src="/logo.png" alt="Universidad de Oviedo"
+         onerror="this.style.display='none'">
+    <span>Universidad de Oviedo</span>
+  </div>
+</div>
+
+<!-- ═══ CONTROLS ═══ -->
+<div id="controlsBar">
+  <label for="storeySelect">Planta:</label>
+  <select id="storeySelect"></select>
+
+  <label class="wheelchair-label">
+    <input type="checkbox" id="wheelchairToggle">
+    ♿ Silla de ruedas (evitar escaleras)
+  </label>
+
+  <span id="statsDisplay"></span>
+</div>
+
+<!-- ═══ LAYER VISIBILITY BAR ═══ -->
+<div id="layerBar">
+  <span class="layer-section-label">Capas</span>
+  <label class="layer-toggle"><input type="checkbox" data-layer="walls"       checked> 🧱 Muros</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="connections" checked> 🔗 Conexiones</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="route"       checked> 🔴 Ruta</label>
+  <span class="layer-sep"></span>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Habitacion"  checked> 🏠 Habitaciones</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Suelo"       checked> 🟦 Suelos</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Puerta"      checked> 🚪 Puertas</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Escalera"    checked> 🪜 Escaleras</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Ascensor"    checked> 🛗 Ascensores</label>
+  <label class="layer-toggle"><input type="checkbox" data-layer="Rampa"       checked> ↗️ Rampas</label>
+  <span class="layer-sep"></span>
+  <label class="layer-size-ctrl" title="Tamaño de nodos en la vista 2D">
+    ⬤ 2D
+    <input type="range" id="nodeSize2DSlider" min="0.3" max="3" step="0.1" value="1"
+           oninput="applyNodeScale2D(+this.value); document.getElementById('nodeSize2DVal').textContent=this.value">
+    <span class="layer-size-value" id="nodeSize2DVal">1.0</span>
+  </label>
+  <label class="layer-size-ctrl" title="Tamaño de nodos en el grafo 3D">
+    ⬤ 3D
+    <input type="range" id="nodeSize3DSlider" min="0.3" max="3" step="0.1" value="1"
+           oninput="applyNodeScale3D(+this.value); document.getElementById('nodeSize3DVal').textContent=this.value">
+    <span class="layer-size-value" id="nodeSize3DVal">1.0</span>
+  </label>
+</div>
+
+<!-- ═══ SPLASH (antes de cargar IFC) ═══ -->
+<div id="splash">
+  <div class="splash-icon">🏗️</div>
+  <h2>IFC2GRAPH</h2>
+  <p>Carga un archivo <strong>.ifc</strong> para generar el grafo de accesibilidad del edificio,
+     visualizar la planta y calcular rutas óptimas entre habitaciones.</p>
+  <label class="upload-btn" style="background:#1e40af;color:white;font-size:1rem;padding:10px 24px" for="fileInput">
+    📂 Seleccionar archivo IFC
+  </label>
+</div>
+
+<!-- ═══ PANELS ═══ -->
+<div id="panelsContainer">
+  <!-- Panel izquierdo: vista en planta 2D -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Vista en Planta (2D)</span>
+      <span id="clickModeBadge" title="Haz clic en un nodo para seleccionar como origen o destino">
+        📍 Clic → Origen
+      </span>
+      <button id="tooltipToggleBtn" class="btn-tooltip-toggle"
+              onclick="toggleFloorplanTooltips()"
+              title="Activar/desactivar tooltips al pasar el cursor sobre los nodos">
+        💬 Tooltips activos
+      </button>
+      <button class="btn-reset-view" onclick="resetFloorplanView()" title="Restablecer vista original">
+        ⟳ Restablecer vista
+      </button>
+    </div>
+    <div class="plot-container">
+      <div id="floorplanDiv"></div>
+    </div>
+  </div>
+
+  <!-- Panel derecho: grafo 3D -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Grafo de Accesibilidad (3D)</span>
+      <button class="btn-reset-view" onclick="resetGraph3DView()" title="Restablecer vista original">
+        ⟳ Restablecer vista
+      </button>
+    </div>
+    <div class="plot-container">
+      <div id="graphDiv"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ROUTE PANEL ═══ -->
+<div id="routePanel">
+  <div class="route-row">
+    <div class="route-field">
+      <label>Origen</label>
+      <select id="originSelect"></select>
+    </div>
+    <div class="route-field">
+      <label>Destino</label>
+      <select id="destSelect"></select>
+    </div>
+    <button class="btn-calc" id="calcBtn" onclick="calculateRoute()">▶ Calcular ruta</button>
+    <button class="btn-clear" onclick="clearRoute()">✕ Limpiar</button>
+  </div>
+  <div id="routeResult"></div>
+</div>
+
+
+<script>
+// ════════════════════════════════════════════════════════════
+// ESTADO
+// ════════════════════════════════════════════════════════════
+const S = {
+  sessionId:    null,
+  storeys:      [],
+  nodes:        [],
+  edges:        [],
+  floorplans:   {},
+  selectedStorey: null,
+  routePath:    [],
+  routeEdgeSet: new Set(),
+  clickMode:    'origin',
+  // Rangos de la vista inicial (para reset)
+  initialFloorplanRange: null,
+  // Mapa de capas → índices de trazas (para toggles de visibilidad)
+  traceMap: { fp: {}, g3d: {}, fpNodeSizes: [], g3dNodeSizes: [] },
+  // Tooltips 2D activados/desactivados
+  tooltipsEnabled: true,
+  // Escala de tamaño de nodos (multiplicador sobre tamaño base)
+  nodeSizeScale2D: 1.0,
+  nodeSizeScale3D: 1.0,
+};
+
+const NODE_STYLES = {
+  'Habitacion': { color: '#2563eb', symbol: 'circle',       size: 12 },
+  'Suelo':      { color: '#db2777', symbol: 'circle-open',  size: 9  },
+  'Puerta':     { color: '#16a34a', symbol: 'diamond',      size: 11 },
+  'Escalera':   { color: '#dc2626', symbol: 'square',       size: 10 },
+  'Ascensor':   { color: '#7c3aed', symbol: 'x',            size: 12 },
+  'Rampa':      { color: '#92400e', symbol: 'cross',        size: 10 },
+};
+const DEFAULT_STYLE = { color: '#6b7280', symbol: 'circle', size: 9 };
+
+// Icono y línea extra de info por tipo (para tooltip)
+const NODE_TOOLTIP_EXTRA = {
+  'Habitacion': (n) => `🏠 Habitación`,
+  'Suelo':      (n) => `🟦 Suelo / Pasillo`,
+  'Puerta':     (n) => n.width
+    ? `🚪 Anchura: <b>${n.width} m</b> · ${n.accessible ? '✅ Accesible' : '⚠️ Estrecha'}`
+    : `🚪 Puerta · ${n.accessible ? '✅ Accesible' : '⚠️ No accesible'}`,
+  'Escalera':   (n) => `🪜 ⚠️ No accesible para ♿`,
+  'Ascensor':   (n) => `🛗 ♿ Accesible`,
+  'Rampa':      (n) => `↗️ ♿ Accesible`,
+};
+
+// ════════════════════════════════════════════════════════════
+// CARGA DE ARCHIVO
+// ════════════════════════════════════════════════════════════
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  document.getElementById('filenameDisplay').textContent = file.name;
+  setLoading(true);
+  hideApp();
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Error al procesar el IFC');
+    }
+    const data = await res.json();
+
+    Object.assign(S, {
+      sessionId:      data.session_id,
+      storeys:        data.storeys,
+      nodes:          data.nodes,
+      edges:          data.edges,
+      floorplans:     data.floorplans,
+      selectedStorey: data.storeys[0] || null,
+      routePath:      [],
+      routeEdgeSet:   new Set(),
+      clickMode:      'origin',
+      initialFloorplanRange: null,
+    });
+
+    initUI();
+    renderFloorplan();
+    renderGraph3D();
+    showApp();
+  } catch (err) {
+    alert('Error al cargar el archivo:\n' + err.message);
+  } finally {
+    setLoading(false);
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// INIT UI
+// ════════════════════════════════════════════════════════════
+function initUI() {
+  const storeyEl = document.getElementById('storeySelect');
+  storeyEl.innerHTML = S.storeys.map(s => `<option value="${s}">${s}</option>`).join('');
+  if (S.selectedStorey) storeyEl.value = S.selectedStorey;
+
+  storeyEl.onchange = () => {
+    S.selectedStorey = storeyEl.value;
+    S.initialFloorplanRange = null; // reset guardado al cambiar planta
+    renderFloorplan();
+    renderGraph3D();
+  };
+
+  const tipos = S.nodes.reduce((acc, n) => { acc[n.type] = (acc[n.type] || 0) + 1; return acc; }, {});
+  document.getElementById('statsDisplay').textContent =
+    `${S.nodes.length} nodos · ${S.edges.length} aristas · ${S.storeys.length} plantas ` +
+    '(' + Object.entries(tipos).map(([t, c]) => `${c} ${t}`).join(', ') + ')';
+
+  const sorted = [...S.nodes].sort((a, b) => {
+    const lc = (a.level || '').localeCompare(b.level || '');
+    return lc !== 0 ? lc : (a.name || '').localeCompare(b.name || '');
+  });
+  const opts = sorted.map(n =>
+    `<option value="${n.id}">[${n.level}] ${n.name || n.type} (${n.type})</option>`
+  ).join('');
+  document.getElementById('originSelect').innerHTML = opts;
+  document.getElementById('destSelect').innerHTML   = opts;
+
+  document.getElementById('wheelchairToggle').onchange = () => {
+    if (S.routePath.length > 0) calculateRoute();
+  };
+
+  updateClickBadge();
+}
+
+// ════════════════════════════════════════════════════════════
+// HELPERS DE DATOS
+// ════════════════════════════════════════════════════════════
+function nodesForStorey(storey) {
+  return S.nodes.filter(n => n.level === storey);
+}
+
+function edgesForStorey(storey) {
+  return S.edges.filter(e => (e.levels || '').split('|').some(l => l.trim() === storey));
+}
+
+function edgeKey(u, v) { return u < v ? `${u}|${v}` : `${v}|${u}`; }
+
+// Genera el texto del tooltip para un nodo
+function nodeTooltip(n) {
+  const extra = (NODE_TOOLTIP_EXTRA[n.type] || (() => n.type))(n);
+  return `<b>${n.name || n.type}</b><br>${extra}<br><span style="color:#888;font-size:11px">Planta: ${n.level}</span>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// VISTA EN PLANTA (2D)
+// ════════════════════════════════════════════════════════════
+function renderFloorplan() {
+  const storey = S.selectedStorey;
+  const traces = [];
+  S.traceMap.fp = {};
+  S.traceMap.fpNodeSizes = [];
+  const sc2D = S.nodeSizeScale2D;
+
+  // Helper: añade traza, registra capa e índice; devuelve el índice asignado
+  function addFP(trace, layerKey) {
+    const idx = traces.length;
+    if (layerKey) {
+      (S.traceMap.fp[layerKey] = S.traceMap.fp[layerKey] || []).push(idx);
+      trace.visible = getLayerVisible(layerKey);
+    }
+    traces.push(trace);
+    return idx;
+  }
+
+  // 1) Muros
+  const wallLines = S.floorplans[storey] || [];
+  if (wallLines.length > 0) {
+    let wx = [], wy = [];
+    for (const line of wallLines) {
+      for (const pt of line) { wx.push(pt[0]); wy.push(pt[1]); }
+      wx.push(null); wy.push(null);
+    }
+    addFP({
+      type: 'scatter', x: wx, y: wy, mode: 'lines',
+      line: { color: '#374151', width: 1.5 },
+      hoverinfo: 'none', showlegend: false, name: 'Muros',
+    }, 'walls');
+  }
+
+  // 2) Aristas
+  const stEdges     = edgesForStorey(storey);
+  const routeEdges  = stEdges.filter(e => S.routeEdgeSet.has(edgeKey(e.u, e.v)));
+  const normalEdges = stEdges.filter(e => !S.routeEdgeSet.has(edgeKey(e.u, e.v)));
+
+  function edgeLineTrace(edges, color, width, name) {
+    let ex = [], ey = [];
+    for (const e of edges) {
+      for (const c of e.coords) { ex.push(c[0]); ey.push(c[1]); }
+      ex.push(null); ey.push(null);
+    }
+    return { type: 'scatter', x: ex, y: ey, mode: 'lines',
+             line: { color, width }, hoverinfo: 'none', name, showlegend: edges.length > 0 };
+  }
+
+  addFP(edgeLineTrace(normalEdges, '#f97316', 2, 'Conexiones'), 'connections');
+  if (routeEdges.length > 0) {
+    addFP(edgeLineTrace(routeEdges, '#e11d48', 6, '🔴 Ruta'), 'route');
+  }
+
+  // 3) Nodos por tipo — solo marcadores, texto solo en tooltip
+  const routeNodeSet = new Set(S.routePath);
+  const stNodes = nodesForStorey(storey);
+  const byType  = {};
+  for (const n of stNodes) { (byType[n.type] = byType[n.type] || []).push(n); }
+
+  for (const [type, nodes] of Object.entries(byType)) {
+    const st = NODE_STYLES[type] || DEFAULT_STYLE;
+
+    const onRoute  = nodes.filter(n => routeNodeSet.has(n.id));
+    const offRoute = nodes.filter(n => !routeNodeSet.has(n.id));
+
+    if (offRoute.length > 0) {
+      const baseSize = st.size;
+      const idx = addFP({
+        type: 'scatter',
+        x: offRoute.map(n => n.x), y: offRoute.map(n => n.y),
+        mode: 'markers',
+        marker: { color: st.color, symbol: st.symbol,
+                  size: Math.max(2, Math.round(baseSize * sc2D)),
+                  opacity: 0.85, line: { color: 'white', width: 1.5 } },
+        name: type, legendgroup: type, showlegend: true,
+        customdata: offRoute.map(n => n.id),
+        hovertemplate: offRoute.map(n => nodeTooltip(n) + '<extra></extra>'),
+      }, type);
+      S.traceMap.fpNodeSizes.push({ idx, baseSize });
+    }
+
+    if (onRoute.length > 0) {
+      const baseSize = st.size + 6;
+      const idx = addFP({
+        type: 'scatter',
+        x: onRoute.map(n => n.x), y: onRoute.map(n => n.y),
+        mode: 'markers',
+        marker: { color: '#e11d48', symbol: st.symbol,
+                  size: Math.max(2, Math.round(baseSize * sc2D)),
+                  line: { color: 'white', width: 2.5 } },
+        name: `${type} 🔴`, legendgroup: type, showlegend: true,
+        customdata: onRoute.map(n => n.id),
+        hovertemplate: onRoute.map(n => nodeTooltip(n) + '<br>🔴 <b>EN RUTA</b><extra></extra>'),
+      }, 'route');
+      S.traceMap.fpNodeSizes.push({ idx, baseSize });
+    }
+  }
+
+  const layout = {
+    margin: { t: 8, b: 36, l: 48, r: 8 },
+    xaxis: { title: 'X (m)', scaleanchor: 'y', scaleratio: 1,
+             zeroline: false, gridcolor: '#f3f4f6', tickfont: { size: 10 } },
+    yaxis: { title: 'Y (m)', zeroline: false, gridcolor: '#f3f4f6', tickfont: { size: 10 } },
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    hovermode: S.tooltipsEnabled ? 'closest' : false,
+    dragmode: 'pan',
+    legend: { x: 1.02, y: 1, xanchor: 'left', font: { size: 10 }, bgcolor: 'rgba(255,255,255,0.9)' },
+    font: { family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+  };
+
+  Plotly.react('floorplanDiv', traces, layout,
+    { responsive: true, displayModeBar: false, scrollZoom: true });
+
+  // Guardar rangos iniciales (solo la primera vez por planta)
+  if (!S.initialFloorplanRange) {
+    S.initialFloorplanRange = { storey };
+    setTimeout(() => {
+      const gd = document.getElementById('floorplanDiv');
+      if (gd._fullLayout) {
+        S.initialFloorplanRange = {
+          storey,
+          xRange: [...(gd._fullLayout.xaxis.range || [])],
+          yRange: [...(gd._fullLayout.yaxis.range || [])],
+        };
+      }
+    }, 200);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// RESET VISTA PLANTA 2D — bounding box real + margen
+// ════════════════════════════════════════════════════════════
+function resetFloorplanView() {
+  const storey    = S.selectedStorey;
+  const stNodes   = nodesForStorey(storey);
+  const wallLines = S.floorplans[storey] || [];
+
+  const allX = [], allY = [];
+  for (const n of stNodes)        { allX.push(n.x); allY.push(n.y); }
+  for (const l of wallLines)  for (const pt of l) { allX.push(pt[0]); allY.push(pt[1]); }
+  // Incluir también aristas para que los segmentos rectos queden dentro
+  for (const e of edgesForStorey(storey))
+    for (const c of e.coords)  { allX.push(c[0]); allY.push(c[1]); }
+
+  if (allX.length === 0) {
+    Plotly.relayout('floorplanDiv', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+    return;
+  }
+
+  const xMin = Math.min(...allX), xMax = Math.max(...allX);
+  const yMin = Math.min(...allY), yMax = Math.max(...allY);
+  const pad  = Math.max((xMax - xMin) * 0.12, (yMax - yMin) * 0.12, 3); // ≥3 m
+
+  Plotly.relayout('floorplanDiv', {
+    'xaxis.range': [xMin - pad, xMax + pad],
+    'yaxis.range': [yMin - pad, yMax + pad],
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// GRAFO 3D
+// ════════════════════════════════════════════════════════════
+let _graph3DInitialCamera = null;
+
+function renderGraph3D() {
+  // El grafo 3D muestra TODAS las plantas siempre
+  const allEdges = S.edges;
+  const traces   = [];
+  S.traceMap.g3d = {};
+  S.traceMap.g3dNodeSizes = [];
+  const sc3D = S.nodeSizeScale3D;
+
+  // Helper: añade traza, registra capa e índice; devuelve el índice asignado
+  function addG3D(trace, layerKey) {
+    const idx = traces.length;
+    if (layerKey) {
+      (S.traceMap.g3d[layerKey] = S.traceMap.g3d[layerKey] || []).push(idx);
+      trace.visible = getLayerVisible(layerKey);
+    }
+    traces.push(trace);
+    return idx;
+  }
+
+  // Aristas normales (todas las plantas)
+  let ex = [], ey = [], ez = [];
+  for (const e of allEdges) {
+    if (S.routeEdgeSet.has(edgeKey(e.u, e.v))) continue;
+    for (const c of e.coords) { ex.push(c[0]); ey.push(c[1]); ez.push(c[2] ?? 0); }
+    ex.push(null); ey.push(null); ez.push(null);
+  }
+  addG3D({
+    type: 'scatter3d', x: ex, y: ey, z: ez, mode: 'lines',
+    line: { color: '#f97316', width: 3 }, hoverinfo: 'none', name: 'Conexiones',
+  }, 'connections');
+
+  // Aristas de ruta — todas las plantas, color rojo vivo, grosor máximo
+  if (S.routeEdgeSet.size > 0) {
+    let rx = [], ry = [], rz = [];
+    for (const e of allEdges) {
+      if (!S.routeEdgeSet.has(edgeKey(e.u, e.v))) continue;
+      for (const c of e.coords) { rx.push(c[0]); ry.push(c[1]); rz.push(c[2] ?? 0); }
+      rx.push(null); ry.push(null); rz.push(null);
+    }
+    addG3D({
+      type: 'scatter3d', x: rx, y: ry, z: rz, mode: 'lines',
+      line: { color: '#e11d48', width: 12 }, hoverinfo: 'none', name: '🔴 Ruta',
+    }, 'route');
+  }
+
+  // Nodos — todas las plantas, separados en nodos de ruta y fuera de ruta por tipo
+  const routeNodeSet = new Set(S.routePath);
+  const byType = {};
+  for (const n of S.nodes) { (byType[n.type] = byType[n.type] || []).push(n); }
+
+  for (const [type, nodes] of Object.entries(byType)) {
+    const st = NODE_STYLES[type] || DEFAULT_STYLE;
+
+    const onRoute  = nodes.filter(n => routeNodeSet.has(n.id));
+    const offRoute = nodes.filter(n => !routeNodeSet.has(n.id));
+
+    if (offRoute.length > 0) {
+      const baseSize = st.size;
+      const idx = addG3D({
+        type: 'scatter3d',
+        x: offRoute.map(n => n.x), y: offRoute.map(n => n.y), z: offRoute.map(n => n.z),
+        mode: 'markers',
+        marker: {
+          size: Math.max(1, Math.round(baseSize * sc3D)),
+          color: st.color, symbol: st.symbol, opacity: 0.85,
+          line: { color: 'rgba(0,0,0,0)', width: 1 },
+        },
+        name: type,
+        hovertemplate: offRoute.map(n => nodeTooltip(n) + '<extra></extra>'),
+      }, type);
+      S.traceMap.g3dNodeSizes.push({ idx, baseSize });
+    }
+
+    if (onRoute.length > 0) {
+      const baseSize = st.size + 4;
+      const idx = addG3D({
+        type: 'scatter3d',
+        x: onRoute.map(n => n.x), y: onRoute.map(n => n.y), z: onRoute.map(n => n.z),
+        mode: 'markers',
+        marker: {
+          size: Math.max(1, Math.round(baseSize * sc3D)),
+          color: '#e11d48', symbol: st.symbol, opacity: 0.9,
+          line: { color: 'white', width: 2 },
+        },
+        name: `${type} 🔴`,
+        hovertemplate: onRoute.map(n =>
+          nodeTooltip(n) + '<br>🔴 <b>EN RUTA</b><extra></extra>'
+        ),
+      }, 'route');
+      S.traceMap.g3dNodeSizes.push({ idx, baseSize });
+    }
+  }
+
+  const defaultCamera = { projection: { type: 'orthographic' } };
+
+  Plotly.react('graphDiv', traces, {
+    margin: { t: 8, b: 0, l: 0, r: 0 },
+    scene: {
+      xaxis: { title: 'X', showbackground: false, gridcolor: '#e5e7eb' },
+      yaxis: { title: 'Y', showbackground: false, gridcolor: '#e5e7eb' },
+      zaxis: { title: 'Z (m)', showbackground: false, gridcolor: '#e5e7eb' },
+      aspectmode: 'data',
+      camera: _graph3DInitialCamera || defaultCamera,
+    },
+    paper_bgcolor: 'white',
+    legend: { x: 1.0, y: 1, xanchor: 'left', font: { size: 10 }, bgcolor: 'rgba(255,255,255,0.9)' },
+    font: { family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+  }, { responsive: true, displayModeBar: false });
+
+  // Capturar cámara inicial
+  if (!_graph3DInitialCamera) {
+    setTimeout(() => {
+      const gd = document.getElementById('graphDiv');
+      if (gd._fullLayout?.scene?.camera) {
+        _graph3DInitialCamera = JSON.parse(JSON.stringify(gd._fullLayout.scene.camera));
+      }
+    }, 200);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// RESET VISTA GRAFO 3D
+// ════════════════════════════════════════════════════════════
+function resetGraph3DView() {
+  Plotly.relayout('graphDiv', {
+    'scene.camera': { projection: { type: 'orthographic' } },
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// SELECCIÓN DE NODOS (clic en planta)
+// ════════════════════════════════════════════════════════════
+function setNodeSelection(nodeId) {
+  if (S.clickMode === 'origin') {
+    document.getElementById('originSelect').value = nodeId;
+    S.clickMode = 'destination';
+  } else {
+    document.getElementById('destSelect').value = nodeId;
+    S.clickMode = 'origin';
+  }
+  updateClickBadge();
+}
+
+function updateClickBadge() {
+  const badge = document.getElementById('clickModeBadge');
+  if (S.clickMode === 'origin') {
+    badge.textContent = '📍 Clic → Origen';
+    badge.classList.remove('mode-dest');
+  } else {
+    badge.textContent = '🎯 Clic → Destino';
+    badge.classList.add('mode-dest');
+  }
+}
+
+document.getElementById('clickModeBadge').addEventListener('click', () => {
+  S.clickMode = S.clickMode === 'origin' ? 'destination' : 'origin';
+  updateClickBadge();
+});
+
+// ════════════════════════════════════════════════════════════
+// CALCULAR RUTA
+// ════════════════════════════════════════════════════════════
+async function calculateRoute() {
+  const origin     = document.getElementById('originSelect').value;
+  const dest       = document.getElementById('destSelect').value;
+  const wheelchair = document.getElementById('wheelchairToggle').checked;
+
+  if (!origin || !dest) { alert('Selecciona origen y destino.'); return; }
+  if (origin === dest)  { alert('Origen y destino deben ser distintos.'); return; }
+  if (!S.sessionId)     { alert('Primero carga un archivo IFC.'); return; }
+
+  const btn = document.getElementById('calcBtn');
+  btn.disabled = true; btn.textContent = '⏳ Calculando…';
+
+  try {
+    const res = await fetch('/api/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: S.sessionId, origin, destination: dest, wheelchair }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Error al calcular la ruta');
+    }
+    const data = await res.json();
+
+    S.routePath = data.path || [];
+    S.routeEdgeSet = new Set();
+    for (let i = 0; i < S.routePath.length - 1; i++) {
+      S.routeEdgeSet.add(edgeKey(S.routePath[i], S.routePath[i + 1]));
+    }
+
+    renderFloorplan();
+    renderGraph3D();
+    showRouteResult(data);
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Calcular ruta';
+  }
+}
+
+function clearRoute() {
+  S.routePath = []; S.routeEdgeSet = new Set();
+  document.getElementById('routeResult').innerHTML = '';
+  renderFloorplan(); renderGraph3D();
+}
+
+function showRouteResult(data) {
+  const el = document.getElementById('routeResult');
+  if (!data.found) {
+    el.innerHTML = `<div class="route-fail">❌ ${data.message}</div>`;
+    return;
+  }
+
+  const nodeMap  = Object.fromEntries(S.nodes.map(n => [n.id, n]));
+  const steps    = (data.path_nodes?.length ? data.path_nodes : data.path.map(id => nodeMap[id])).filter(Boolean);
+
+  const stepsHtml = steps.map((node, i) => {
+    const st   = NODE_STYLES[node.type] || DEFAULT_STYLE;
+    const chip = `<span class="step-chip" style="background:${st.color}18;border-color:${st.color}55;color:#1a1a1a">
+      ${node.name || node.type}<span class="level-badge">${node.level}</span>
+    </span>`;
+    return i < steps.length - 1 ? chip + `<span class="step-arrow">→</span>` : chip;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="route-ok">
+      <div class="route-summary">✅ ${data.message}</div>
+      <div class="route-steps">${stepsHtml}</div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// CONTROL DE VISIBILIDAD DE CAPAS
+// ════════════════════════════════════════════════════════════
+
+// Lee el estado actual del checkbox de una capa (true = visible)
+function getLayerVisible(layerKey) {
+  const cb = document.querySelector(`#layerBar input[data-layer="${layerKey}"]`);
+  return cb ? cb.checked : true;
+}
+
+// Aplica visibilidad de una capa a ambos gráficos
+function toggleLayer(layerKey, visible) {
+  const fpIdxs  = S.traceMap.fp[layerKey];
+  const g3dIdxs = S.traceMap.g3d[layerKey];
+  if (fpIdxs  && fpIdxs.length)  Plotly.restyle('floorplanDiv', { visible }, fpIdxs);
+  if (g3dIdxs && g3dIdxs.length) Plotly.restyle('graphDiv',     { visible }, g3dIdxs);
+}
+
+// ════════════════════════════════════════════════════════════
+// TAMAÑO DE NODOS
+// ════════════════════════════════════════════════════════════
+
+function applyNodeScale2D(scale) {
+  S.nodeSizeScale2D = scale;
+  for (const { idx, baseSize } of S.traceMap.fpNodeSizes) {
+    Plotly.restyle('floorplanDiv',
+      { 'marker.size': Math.max(2, Math.round(baseSize * scale)) }, [idx]);
+  }
+}
+
+function applyNodeScale3D(scale) {
+  S.nodeSizeScale3D = scale;
+  for (const { idx, baseSize } of S.traceMap.g3dNodeSizes) {
+    Plotly.restyle('graphDiv',
+      { 'marker.size': Math.max(1, Math.round(baseSize * scale)) }, [idx]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// TOGGLE TOOLTIPS 2D
+// ════════════════════════════════════════════════════════════
+function toggleFloorplanTooltips() {
+  S.tooltipsEnabled = !S.tooltipsEnabled;
+  // Actualizar hovermode sin redibujar las trazas
+  Plotly.relayout('floorplanDiv', { hovermode: S.tooltipsEnabled ? 'closest' : false });
+  // Actualizar aspecto del botón
+  const btn = document.getElementById('tooltipToggleBtn');
+  if (btn) {
+    btn.textContent  = S.tooltipsEnabled ? '💬 Tooltips activos' : '🔇 Tooltips off';
+    btn.classList.toggle('off', !S.tooltipsEnabled);
+  }
+}
+
+// Registra los listeners de los checkboxes (llamar una sola vez)
+let _layerListenersRegistered = false;
+function registerLayerListeners() {
+  if (_layerListenersRegistered) return;
+  _layerListenersRegistered = true;
+  document.querySelectorAll('#layerBar input[data-layer]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      toggleLayer(cb.dataset.layer, cb.checked);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// MOSTRAR / OCULTAR APP
+// ════════════════════════════════════════════════════════════
+let _floorplanClickRegistered = false;
+
+function showApp() {
+  document.getElementById('splash').style.display          = 'none';
+  document.getElementById('controlsBar').style.display    = 'flex';
+  document.getElementById('layerBar').style.display       = 'flex';
+  document.getElementById('panelsContainer').style.display = 'flex';
+  document.getElementById('routePanel').style.display     = 'block';
+
+  // Registrar el click handler UNA sola vez por sesión
+  if (!_floorplanClickRegistered) {
+    _floorplanClickRegistered = true;
+    document.getElementById('floorplanDiv').on('plotly_click', (data) => {
+      if (!data.points?.length) return;
+      const nodeId = data.points[0].customdata;
+      if (!nodeId) return;
+      setNodeSelection(nodeId);
+    });
+  }
+
+  // Registrar listeners de capas UNA sola vez
+  registerLayerListeners();
+}
+
+function hideApp() {
+  document.getElementById('splash').style.display          = 'flex';
+  document.getElementById('controlsBar').style.display    = 'none';
+  document.getElementById('layerBar').style.display       = 'none';
+  document.getElementById('panelsContainer').style.display = 'none';
+  document.getElementById('routePanel').style.display     = 'none';
+}
+
+function setLoading(on) {
+  document.getElementById('loading').style.display = on ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

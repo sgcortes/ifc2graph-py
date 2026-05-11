@@ -584,15 +584,17 @@ class BIMAccessibilityMapper:
             cx_e = sum(v[0] for v in top) / len(top) if top else xs[zs.index(max_z)]
             cy_e = sum(v[1] for v in top) / len(top) if top else ys[zs.index(max_z)]
 
-            level_s, fz_s = self.snap_z_to_level(min_z)
-            level_e, fz_e = self.snap_z_to_level(max_z)
+            level_s = self.snap_z_to_level(min_z)[0]   # nombre del nivel (para conectividad)
+            level_e = self.snap_z_to_level(max_z)[0]   # nombre del nivel (para conectividad)
+            fz_s = float(min_z)   # altura geométrica real → captura rellanos intermedios
+            fz_e = float(max_z)   # altura geométrica real → captura rellanos intermedios
             id_s = f"{stair.GlobalId}_START"
             id_e = f"{stair.GlobalId}_END"
 
             self.G.add_node(id_s, name="Escalera Inicio", type="Escalera", level=level_s,
-                            x=float(cx_s), y=float(cy_s), z=float(fz_s), accessible=False)
+                            x=float(cx_s), y=float(cy_s), z=fz_s, accessible=False)
             self.G.add_node(id_e, name="Escalera Fin",   type="Escalera", level=level_e,
-                            x=float(cx_e), y=float(cy_e), z=float(fz_e), accessible=False)
+                            x=float(cx_e), y=float(cy_e), z=fz_e, accessible=False)
             self.add_edge_with_polyline(id_s, id_e,
                 [(cx_s, cy_s, fz_s), (cx_e, cy_e, fz_e)],
                 weight=999999.0, accessible=False, edge_type="escalera")

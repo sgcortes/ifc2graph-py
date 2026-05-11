@@ -650,7 +650,11 @@ class BIMAccessibilityMapper:
                         accessible=False, edge_type="escalera_rellano",
                     )
 
-        # Fallback geométrico: nodos de escalera de distintos niveles próximos en XY
+        # Fallback geométrico: solo para tramos NO conectados vía IfcRelAggregates
+        # y únicamente entre NIVELES ADYACENTES (índice ±1). Conectar nodos de
+        # plantas no consecutivas crea aristas cruzadas que no reflejan la
+        # circulación real y sobrecargan el grafo visualmente.
+        storeys_idx = {name: i for i, (name, _) in enumerate(self._sorted_storeys)}
         stair_nodes = [
             (nid, d) for nid, d in self.G.nodes(data=True)
             if d.get("type") == "Escalera"
@@ -659,7 +663,13 @@ class BIMAccessibilityMapper:
             for nb_id, nb in stair_nodes[i + 1:]:
                 if self.G.has_edge(na_id, nb_id):
                     continue
-                if na.get("level") == nb.get("level"):
+                lvl_a = na.get("level", ""); lvl_b = nb.get("level", "")
+                if lvl_a == lvl_b:
+                    continue
+                # Solo niveles consecutivos (adyacentes en la lista de plantas)
+                idx_a = storeys_idx.get(lvl_a, -1)
+                idx_b = storeys_idx.get(lvl_b, -1)
+                if idx_a < 0 or idx_b < 0 or abs(idx_a - idx_b) != 1:
                     continue
                 dxy = math.hypot(na['x'] - nb['x'], na['y'] - nb['y'])
                 dz  = abs(na['z'] - nb['z'])

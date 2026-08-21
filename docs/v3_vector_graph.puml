@@ -1,0 +1,67 @@
+@startuml
+title HSIMG V3 - Vector subgraph generation
+left to right direction
+
+class HSIMGConfig {
+  + vector_boundary_sample_spacing_m: float
+  + medial_axis_pruning_length_m: float
+  + minimum_walkable_width_m: float
+  + prefer_vector_medial_axis: bool
+}
+
+class HSIMGBuilder {
+  + from_file(path, config)
+  + run_all()
+  + build_horizontal_subgraphs()
+  + build_vertical_subgraphs()
+  + validate_graph()
+  + export_geopackage(path)
+  + export_graph(graphml, json)
+}
+
+class VectorAxisConfig {
+  + boundary_sample_spacing_m: float
+  + minimum_branch_length_m: float
+  + simplification_tolerance_m: float
+  + containment_tolerance_m: float
+}
+
+class VectorMedialAxisEngine {
+  + build(polygon, z, access_points): VectorAxisResult
+  - sample_boundary()
+  - voronoi_segments()
+  - merge_segments()
+  - prune_short_leaves()
+  - safe_simplify()
+}
+
+class VectorAxisResult {
+  + lines: LineString[]
+  + method: string
+  + boundary_samples: int
+  + retained_ridges: int
+  + pruned_branches: int
+  + connected_components: int
+}
+
+class MultiDiGraph
+class ExportProducts {
+  + GeoPackage
+  + GraphJSON
+  + GraphML
+  + ValidationCSV
+}
+
+HSIMGBuilder *-- HSIMGConfig
+HSIMGBuilder *-- VectorMedialAxisEngine
+VectorMedialAxisEngine *-- VectorAxisConfig
+VectorMedialAxisEngine --> VectorAxisResult
+HSIMGBuilder --> MultiDiGraph
+HSIMGBuilder --> ExportProducts
+
+note bottom of VectorMedialAxisEngine
+  Boundary sampling -> bounded Voronoi
+  -> merge -> access-aware pruning
+  -> safe simplification
+end note
+@enduml

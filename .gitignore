@@ -41,3 +41,11 @@ Thumbs.db
 # Temporales de subida
 uploads/
 tmp/
+.qa/
+.pnpm-store/
+.publish/
+
+# Productos generados por HSIMG
+HSIMG_*_graph.graphml
+HSIMG_*_graph.json
+HSIMG_*_validation_report.csv

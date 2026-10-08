@@ -41,6 +41,12 @@ grafo. No se exportan aristas horizontales con `accessible_general=0`.
 
 ## Integridad lógica
 
+V14 añade la tabla de atributos `horizontal_cleanup_v14` (`fid`, `record_type`,
+`data_json`) para el resumen, los resultados por subgrafo y las acciones de
+limpieza. Los nodos internos de grado dos pueden estar representados solo como
+vértices de una conexión: deben usarse las polilíneas completas de `graph_edges`
+para visualizar y medir recorridos, no el segmento recto entre nodos.
+
 - `graph_nodes.parent_node_id` referencia un nodo semántico padre.
 - `graph_nodes.subgraph_id`, `graph_edges.subgraph_id` y
   `mobility_axes.subgraph_id` enlazan con `subgraphs.subgraph_id`.

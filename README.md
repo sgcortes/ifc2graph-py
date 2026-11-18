@@ -5,9 +5,9 @@ exportación a GeoPackage. El repositorio conserva la aplicación FastAPI
 original y añade el generador jerárquico HSIMG empleado en las validaciones más
 recientes.
 
-## Generador actual: HSIMG V14
+## Generador actual: HSIMG V15
 
-V14 construye un `MultiDiGraph` 3D con espacios, puertas, ejes internos de
+V15 construye un `MultiDiGraph` 3D con espacios, puertas, ejes internos de
 circulación, escaleras, rampas y ascensores. Exporta las capas espaciales y las
 tablas de conectividad a GeoPackage, además de GraphML y JSON.
 
@@ -34,6 +34,12 @@ La [metodología V14](docs/V14_FUNCTIONAL_HORIZONTAL_CLEANUP.md) describe las
 garantías y los límites. Para estudiar redundancia o alternativas, exportar
 con `--keep-all-horizontal-alternatives`.
 
+V15 sustituye los accesos de escalera basados en centros de espacio por nodos
+al principio/final de cada tramo y descansillos apoyados en geometría IFC.
+Resuelve bifurcaciones y conexiones por las puertas de cada planta; los padres
+jerárquicos no actúan como atajos. Incluye auditorías de alcance a pasillos por
+planta y de ajustes de cota. Véanse los [límites de V15](docs/V15_STAIR_LANDING_NETWORKS.md).
+
 ## Instalación
 
 ```powershell
@@ -41,17 +47,17 @@ python -m venv .venv
 .\.venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-## Generar un GeoPackage V14
+## Generar un GeoPackage V15
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_v14_export.py modelo.ifc `
-  --output-dir .qa\modelo_v14_release
+.\.venv\Scripts\python.exe scripts\run_v15_export.py modelo.ifc `
+  --output-dir .qa\modelo_v15_release
 ```
 
 El resultado principal será:
 
 ```text
-.qa/modelo_v14_release/HSIMG_v14_output.gpkg
+.qa/modelo_v15_release/HSIMG_v15_output.gpkg
 ```
 
 La ejecución comprueba integridad SQLite, referencias de aristas, reciprocidad,
@@ -72,15 +78,18 @@ Para reproducir la validación histórica específica del caso V13:
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-La versión publicada incluye 77 pruebas automatizadas.
+La versión publicada incluye 88 pruebas automatizadas. La comprobación del
+GeoPackage exportado se ejecuta con `scripts/validate_v15_stairs.py` y distingue
+integridad estructural de accesos de planta todavía sin validar.
 
 ## Archivos principales
 
 - `hsimg.py`: núcleo del generador.
-- `v14hsimg.py`: versión más reciente.
+- `v15hsimg.py`: versión más reciente, con escaleras basadas en tramos y descansillos.
+- `stair_surfaces.py`: secciones de obstáculos físicos para accesos abiertos.
 - `horizontal_cleanup.py`: reducción y comprobación de rutas entre accesos.
-- `v2hsimg.py`–`v13hsimg.py`: cadena histórica requerida por V14.
-- `scripts/run_v14_export.py`: ejecución, exportación y auditoría V14.
+- `v2hsimg.py`–`v14hsimg.py`: cadena histórica requerida por V15.
+- `scripts/run_v15_export.py`: ejecución, exportación y auditoría V15.
 - `scripts/run_v13_export.py`: ejecución y exportación completa.
 - `scripts/validate_v13_release.py`: validación de GeoPackages V13.
 - `GEOPACKAGE_SCHEMA.md`: descripción de capas y atributos.

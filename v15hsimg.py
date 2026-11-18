@@ -188,6 +188,9 @@ class HSIMGBuilder(v14.HSIMGBuilder):
             storey_id=storey,accessible_wheelchair=False,metadata=metadata)
 
     def _stair_edge(self, source, target, line, vertical, kind, metadata):
+        for node, coordinate in ((source,line.coords[0]),(target,line.coords[-1])):
+            if math.dist(self.graph.nodes[node]['geometry'].coords[0],coordinate)>1e-6:
+                raise ValueError(f'Stair connector endpoint differs from node {node}')
         self._add_bidirectional_edge(source,target,edge_type=kind,mobility_mode='stair' if kind=='vertical_path' else 'walk',
             subgraph_id=stable_id('subgraph',vertical.vertical_id,'vertical'),geometry=line,
             accessible_wheelchair=False,restriction_reason='stairs_not_wheelchair_accessible',
@@ -228,11 +231,15 @@ class HSIMGBuilder(v14.HSIMGBuilder):
                 if local_safe.is_empty:continue
                 centre=local_safe.centroid if local_safe.covers(local_safe.centroid) else local_safe.representative_point()
                 centre=Point(centre.x,centre.y,space.elevation)
+                key=(space.space_id,index)
+                landing=self.stair_floor_landings.get(key)
+                if landing is not None:
+                    # A shared landing has one immutable position. The local
+                    # patch centre can differ for the next flight in a hall.
+                    centre=self.graph.nodes[landing]['geometry']
                 path=self._stair_route(part,point,centre,space.elevation)
                 if path is None:
                     continue
-                key=(space.space_id,index)
-                landing=self.stair_floor_landings.get(key)
                 if landing is None:
                     landing=stable_id('stair_floor_landing_v15',space.ifc_guid,index)
                     self.stair_floor_landings[key]=landing

@@ -107,6 +107,22 @@ class StairLandingTests(unittest.TestCase):
         wall=horizontal_section(vertices,faces,2.5)
         self.assertAlmostEqual(wall.area,.6)
 
+    def test_shared_hall_landing_keeps_one_geometric_position(self):
+        b=self.builder()
+        space=SimpleNamespace(space_id='hall',ifc_guid='hall-guid',name='Hall',long_name='Hall',
+            storey_id='L',elevation=0,footprint=box(0,0,12,4),node_class='horizontal_mobility',connected_door_ids=[])
+        b.spaces={'hall':space};b.doors={};b.stair_parts={}
+        b._stair_floor_domains={};b.stair_floor_landings={};b.stair_access_audit=[]
+        vertical=SimpleNamespace(vertical_id='s',ifc_guid='stair-guid',name='Stair')
+        for node,x in [('first',2),('second',8)]:
+            b.graph.add_node(node,geometry=Point(x,2,0),storey_id='L')
+            b._attach_stair_floor(node,vertical,'L')
+        self.assertEqual(len(b.stair_floor_landings),1)
+        self.assertTrue(nx.has_path(b.graph,'first','second'))
+        for u,v,d in b.graph.edges(data=True):
+            self.assertEqual(d['geometry'].coords[0],b.graph.nodes[u]['geometry'].coords[0])
+            self.assertEqual(d['geometry'].coords[-1],b.graph.nodes[v]['geometry'].coords[0])
+
     def test_solid_wall_prevents_open_stair_hall_route(self):
         b=self.builder();floor=box(0,0,6,3)
         wall=box(2.9,0,3.1,3)

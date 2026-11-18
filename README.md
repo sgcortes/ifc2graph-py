@@ -78,7 +78,7 @@ Para reproducir la validación histórica específica del caso V13:
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-La versión publicada incluye 88 pruebas automatizadas. La comprobación del
+La versión publicada incluye 89 pruebas automatizadas. La comprobación del
 GeoPackage exportado se ejecuta con `scripts/validate_v15_stairs.py` y distingue
 integridad estructural de accesos de planta todavía sin validar.
 
